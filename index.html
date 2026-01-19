@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Nucleares — Расширенный мониторинг</title>
+<style>
+  :root{
+    --bg:#0b0b0b;
+    --panel:#141414;
+    --line:#2c2c2c;
+    --txt:#00ff66;
+    --txt-dim:#7cffb1;
+    --yellow:#ffd100; 
+    --green:#42ff8c;
+    --accent:#00ffff;
+    --danger:#ff4d4d;
+    --ok:#42ff8c;
+    --warn:#ffb84d;
+    --blue:#4d94ff;
+    --purple:#b366ff;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--txt);
+    font-family:var(--mono);
+    letter-spacing:0.2px;
+  }
+  header{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:12px;
+    padding:14px 16px;
+    border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg, #111 0%, #0b0b0b 100%);
+    position:sticky; top:0; z-index:10;
+  }
+  header .title{
+    color:var(--yellow);
+    font-weight:700;
+    letter-spacing:2px;
+    font-size:1.5rem;
+  }
+  header .sub{
+    color:var(--txt-dim);
+    font-size:12px;
+    opacity:.9;
+  }
+  .wrap{
+    max-width:1400px;
+    margin:0 auto;
+    padding:18px 14px 48px;
+  }
+  .dashboard{
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap:16px;
+    margin-bottom:24px;
+  }
+  .row{
+    display:grid;
+    grid-template-columns: 56px 1fr;
+    align-items:stretch;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:8px;
+    overflow:hidden;
+    min-height:120px;
+  }
+  .row.double{
+    grid-column: span 2;
+  }
+  .row.wide{
+    grid-column: 1 / -1;
+  }
+  .icon{
+    display:flex;
+    align-items:center; justify-content:center;
+    background:#0e0e0e;
+    border-right:1px solid var(--line);
+    padding:8px;
+  }
+  .icon svg{width:28px;height:28px; fill:var(--green)}
+  .row.turbine .icon svg{ fill:var(--accent); }
+  .row.steam .icon svg{ fill:var(--blue); }
+  .content{
+    display:flex; flex-direction:column;
+  }
+  .hdr{
+    display:flex; align-items:center; justify-content:space-between;
+    border-bottom:1px dashed #2a2a2a;
+    padding:8px 10px;
+    flex-wrap:wrap;
+  }
+  .hdr .name{
+    font-weight:800; letter-spacing:1px;
+    text-transform:uppercase;
+    font-size:0.95rem;
+  }
+  .hdr .name.yellow{ color:var(--yellow); }
+  .hdr .name.green{ color:var(--green); }
+  .hdr .name.blue{ color:var(--blue); }
+  .hdr .name.accent{ color:var(--accent); }
+  .hdr .right{
+    display:flex; gap:8px; align-items:center; color:var(--txt-dim); font-size:12px;
+  }
+  .lines{
+    display:flex; flex-direction:column;
+    flex-grow:1;
+  }
+  .line{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:8px 10px;
+    border-top:1px solid rgba(255,255,255,0.03);
+  }
+  .line:first-child{ border-top:none; }
+  .line.compact{
+    padding:6px 10px;
+    font-size:0.9rem;
+  }
+  .kvs{
+    display:flex; gap:12px; flex-wrap:wrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .kv{ color:var(--txt); }
+  .kv .k{ color:var(--txt-dim); margin-right:4px; }
+  .kv .v{ color:var(--txt); }
+  .kv .v.high{ color:var(--ok); font-weight:bold; }
+  .kv .v.low{ color:var(--warn); }
+  .kv .v.critical{ 
+    color:var(--danger); 
+    font-weight:bold;
+    animation: pulse 1.5s infinite;
+  }
+  .badge{
+    border:1px solid var(--line);
+    padding:2px 6px; border-radius:4px;
+    color:var(--accent); font-size:12px;
+    white-space:nowrap;
+  }
+  .badge.ok{ color:var(--ok); border-color:var(--ok); }
+  .badge.warn{ color:var(--warn); border-color:var(--warn); }
+  .badge.error{ color:var(--danger); border-color:var(--danger); }
+  .badge.blue{ color:var(--blue); border-color:var(--blue); }
+  .badge.purple{ color:var(--purple); border-color:var(--purple); }
+  .muted{ color:var(--txt-dim); }
+  .ok{ color:var(--ok); }
+  .warn{ color:var(--warn); }
+  .err{ color:var(--danger); }
+  .progress-container{
+    flex-grow:1;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .progress-bar{
+    flex-grow:1;
+    height:6px;
+    background:rgba(255,255,255,0.1);
+    border-radius:3px;
+    overflow:hidden;
+  }
+  .progress-fill{
+    height:100%;
+    background:var(--accent);
+    transition:width 0.3s ease;
+  }
+  .progress-fill.ok{ background:var(--ok); }
+  .progress-fill.warn{ background:var(--warn); }
+  .progress-fill.error{ background:var(--danger); }
+  footer{
+    color:#7a7a7a; font-size:12px; text-align:center; padding:16px; border-top:1px solid var(--line);
+    margin-top:20px;
+  }
+  
+  /* адаптация */
+  @media (max-width:768px){
+    .hdr{flex-direction:column; align-items:flex-start; gap:6px;}
+    .kvs{gap:10px}
+    .dashboard{ grid-template-columns: 1fr; }
+    .row.double, .row.wide{ grid-column: span 1; }
+  }
+  
+  /* Анимации */
+  @keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.6; }
+    100% { opacity: 1; }
+  }
+  
+  /* Таблицы */
+  .table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:12px;
+  }
+  .table th{
+    text-align:left;
+    padding:6px 8px;
+    border-bottom:1px solid var(--line);
+    color:var(--txt-dim);
+    font-weight:normal;
+  }
+  .table td{
+    padding:6px 8px;
+    border-bottom:1px solid rgba(255,255,255,0.05);
+  }
+  .table tr:hover{
+    background:rgba(255,255,255,0.03);
+  }
+  
+  /* Статус соединения */
+  .connection-status {
+    position: fixed;
+    bottom: 10px;
+    right: 10px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: var(--mono);
+    z-index: 100;
+  }
+  .connection-status.online {
+    background: var(--ok);
+    color: var(--bg);
+  }
+  .connection-status.offline {
+    background: var(--danger);
+    color: white;
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="title">NUCLEARES REACTOR MONITOR</div>
+  <div class="sub">Полный мониторинг турбин и парогенераторов • localhost:8785 • 0.5с</div>
+</header>
+
+<div class="wrap">
+  <div class="dashboard">
+    <!-- СИСТЕМНЫЙ СТАТУС -->
+    <div class="row wide">
+      <div class="icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M12 2l2.5 4.33L19 7l-2.5 4.33L19 15l-4.5.67L12 20l-2.5-4.33L5 15l2.5-3.67L5 7l4.5-.67L12 2z"/></svg>
+      </div>
+      <div class="content">
+        <div class="hdr">
+          <div class="name yellow">СИСТЕМНЫЙ СТАТУС</div>
+          <div class="right">
+            <span id="time-stamp" class="badge">TIME: —</span>
+            <span id="alarms-active" class="badge">ALARMS: 0</span>
+            <span id="core-integrity" class="badge">INTEGRITY: 100%</span>
+          </div>
+        </div>
+        <div class="lines">
+          <div class="line compact">
+            <div class="kvs">
+              <div class="kv"><span class="k">Режим:</span><span id="core-operation-mode" class="v">—</span></div>
+              <div class="kv"><span class="k">Готов к запуску:</span><span id="core-ready-for-start" class="v">—</span></div>
+              <div class="kv"><span class="k">Критичность:</span><span id="core-state-criticality" class="v">—</span></div>
+            </div>
+          </div>
+          <div class="line compact">
+            <div class="kvs">
+              <div class="kv muted"><span class="k">Температура ядра:</span><span id="core-temp" class="v">—°C</span></div>
+              <div class="kv muted"><span class="k">Давление ядра:</span><span id="core-pressure" class="v">— BAR</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ТУРБИНЫ (STEAM TURBINES) -->
+    <div class="row turbine double">
+      <div class="icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 0 1 5 5l5 5-5 5a5 5 0 0 1-10 0L2 12l5-5a5 5 0 0 1 5-5z"/></svg>
+      </div>
+      <div class="content">
+        <div class="hdr">
+          <div class="name accent">ТУРБИНЫ ПАРА</div>
+          <div class="right">
+            <span id="total-turbine-power" class="badge">СУММА: 0 kW</span>
+            <span id="installed-turbines" class="badge blue">УСТАНОВЛЕНО: 0</span>
+          </div>
+        </div>
+        <div class="lines">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Турбина</th>
+                <th>Установлена</th>
+                <th>RPM</th>
+                <th>Давление</th>
+                <th>Температура</th>
+                <th>Крутящий момент</th>
+                <th>Bypass</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr id="turbine-row-0">
+                <td>Turbine 0</td>
+                <td><span id="turbine0-installed">—</span></td>
+                <td><span id="turbine0-rpm">—</span></td>
+                <td><span id="turbine0-pressure">—</span></td>
+                <td><span id="turbine0-temperature">—</span></td>
+                <td><span id="turbine0-torque">—</span></td>
+                <td><span id="turbine0-bypass">—</span></td>
+              </tr>
+              <tr id="turbine-row-1">
+                <td>Turbine 1</td>
+                <td><span id="turbine1-installed">—</span></td>
+                <td><span id="turbine1-rpm">—</span></td>
+                <td><span id="turbine1-pressure">—</span></td>
+                <td><span id="turbine1-temperature">—</span></td>
+                <td><span id="turbine1-torque">—</span></td>
+                <td><span id="turbine1-bypass">—</span></td>
+              </tr>
+              <tr id="turbine-row-2">
+                <td>Turbine 2</td>
+                <td><span id="turbine2-installed">—</span></td>
+                <td><span id="turbine2-rpm">—</span></td>
+                <td><span id="turbine2-pressure">—</span></td>
+                <td><span id="turbine2-temperature">—</span></td>
+                <td><span id="turbine2-torque">—</span></td>
+                <td><span id="turbine2-bypass">—</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ГЕНЕРАТОРЫ (GENERATORS) -->
+    <div class="row">
+      <div class="icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M13 2L3 14h7v8l11-14h-8z"/></svg>
+      </div>
+      <div class="content">
+        <div class="hdr">
+          <div class="name green">ГЕНЕРАТОРЫ</div>
+          <div class="right">
+            <span id="grid-hz" class="badge">HZ: —</span>
+            <span id="grid-v" class="badge">V: —</span>
+          </div>
+        </div>
+        <div class="lines">
+          <div class="line compact">
+            <div class="kvs">
+              <div class="kv"><span class="k">Gen 0:</span><span id="generator0-kw" class="v">— kW</span></div>
+              <div class="kv"><span class="k">Gen 1:</span><span id="generator1-kw" class="v">— kW</span></div>
+              <div class="kv"><span class="k">Gen 2:</span><span id="generator2-kw" class="v">— kW</span></div>
+            </div>
+          </div>
+          <div class="line compact">
+            <div class="kvs">
+              <div class="kv muted"><span class="k">Выключатель 0:</span><span id="generator0-breaker" class="v">—</span></div>
+              <div class="kv muted"><span class="k">Выключатель 1:</span><span id="generator1-breaker" class="v">—</span></div>
+              <div class="kv muted"><span class="k">Выключатель 2:</span><span id="generator2-breaker" class="v">—</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ПАРОГЕНЕРАТОРЫ (STEAM GENERATORS) -->
+    <div class="row steam double">
+      <div class="icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M4 5h16v4H4zM6 11h12v8H6z"/></svg>
+      </div>
+      <div class="content">
+        <div class="hdr">
+          <div class="name blue">ПАРОГЕНЕРАТОРЫ</div>
+          <div class="right">
+            <span id="total-evaporated" class="badge">ИСПАРЕНО: —</span>
+            <span id="active-loops" class="badge blue">КОНТУРОВ: 3</span>
+          </div>
+        </div>
+        <div class="lines">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Контур</th>
+                <th>Статус</th>
+                <th>Температура</th>
+                <th>Давление</th>
+                <th>Объем</th>
+                <th>Испарение</th>
+                <th>Вентиляция</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr id="steamgen-row-0">
+                <td>Loop 0</td>
+                <td><span id="steamgen0-status">—</span></td>
+                <td><span id="steamgen0-temperature">—°C</span></td>
+                <td><span id="steamgen0-pressure">— BAR</span></td>
+                <td><span id="steamgen0-volume">—</span></td>
+                <td><span id="steamgen0-evaporated">—</span></td>
+                <td><span id="steamgen0-vent">—</span></td>
+              </tr>
+              <tr id="steamgen-row-1">
+                <td>Loop 1</td>
+                <td><span id="steamgen1-status">—</span></td>
+                <td><span id="steamgen1-temperature">—°C</span></td>
+                <td><span id="steamgen1-pressure">— BAR</span></td>
+                <td><span id="steamgen1-volume">—</span></td>
+                <td><span id="steamgen1-evaporated">—</span></td>
+                <td><span id="steamgen1-vent">—</span></td>
+              </tr>
+              <tr id="steamgen-row-2">
+                <td>Loop 2</td>
+                <td><span id="steamgen2-status">—</span></td>
+                <td><span id="steamgen2-temperature">—°C</span></td>
+                <td><span id="steamgen2-pressure">— BAR</span></td>
+                <td><span id="steamgen2-volume">—</span></td>
+                <td><span id="steamgen2-evaporated">—</span></td>
+                <td><span id="steamgen2-vent">—</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- СТАТИСТИКА ТУРБИН -->
+    <div class="row turbine">
+      <div class="icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 0 1 5 5l5 5-5 5a5 5 0 0 1-10 0L2 12l5-5a5 5 0 0 1 5-5z"/></svg>
+      </div>
+      <div class="content">
+        <div class="hdr">
+          <div class="name accent">СТАТИСТИКА ТУРБИН</div>
+          <div class="right">
+            <span id="avg-turbine-rpm" class="badge">AVG RPM: —</span>
+            <span id="avg-turbine-temp" class="badge">AVG T: —°C</span>
+          </div>
+        </div>
+        <div class="lines">
+          <div class="line">
+            <div class="kvs">
+              <div class="kv"><span class="k">Макс. мощность:</span><span id="max-power-theoretical" class="v">— MW</span></div>
+              <div class="kv"><span class="k">Спрос мощности:</span><span id="power-demand" class="v">— MW</span></div>
+            </div>
+          </div>
+          <div class="line">
+            <div class="kvs">
+              <div class="kv muted"><span class="k">Турбина → Сеть:</span><span id="power-from-turbine" class="v">— kW</span></div>
+              <div class="kv muted"><span class="k">Внешняя сеть:</span><span id="power-from-external" class="v">— kW</span></div>
+            </div>
+          </div>
+          <div class="line">
+            <div class="progress-container">
+              <span class="k">Загрузка турбин:</span>
+              <div class="progress-bar">
+                <div id="turbine-load-bar" class="progress-fill" style="width: 0%"></div>
+              </div>
+              <span id="turbine-load-percent" class="v">0%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- СТАТИСТИКА ПАРОГЕНЕРАТОРОВ -->
+    <div class="row steam">
+      <div class="icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M4 5h16v4H4zM6 11h12v8H6z"/></svg>
+      </div>
+      <div class="content">
+        <div class="hdr">
+          <div class="name blue">СТАТИСТИКА ПАРА</div>
+          <div class="right">
+            <span id="avg-steam-pressure" class="badge">AVG P: — BAR</span>
+            <span id="avg-steam-temp" class="badge">AVG T: —°C</span>
+          </div>
+        </div>
+        <div class="lines">
+          <div class="line">
+            <div class="kvs">
+              <div class="kv"><span class="k">Суммарное испарение:</span><span id="total-evaporation" class="v">—</span></div>
+              <div class="kv"><span class="k">Скорость потока:</span><span id="condensate-flow" class="v">—</span></div>
+            </div>
+          </div>
+          <div class="line">
+            <div class="kvs">
+              <div class="kv muted"><span class="k">Точка кипения 0:</span><span id="steamgen0-boiling" class="v">—°C</span></div>
+              <div class="kv muted"><span class="k">Точка кипения 1:</span><span id="steamgen1-boiling" class="v">—°C</span></div>
+              <div class="kv muted"><span class="k">Точка кипения 2:</span><span id="steamgen2-boiling" class="v">—°C</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- КОНДЕНСАТОР -->
+    <div class="row">
+      <div class="icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M3 7h18v4H3V7zm0 6h18v4H3v-4z"/></svg>
+      </div>
+      <div class="content">
+        <div class="hdr">
+          <div class="name green">КОНДЕНСАТОР</div>
+          <div class="right">
+            <span id="condenser-vacuum" class="badge">ВАКУУМ: —</span>
+            <span id="condenser-pump" class="badge">НАСОС: —</span>
+          </div>
+        </div>
+        <div class="lines">
+          <div class="line compact">
+            <div class="kvs">
+              <div class="kv"><span class="k">Температура:</span><span id="condenser-temperature" class="v">—°C</span></div>
+              <div class="kv"><span class="k">Давление:</span><span id="condenser-pressure" class="v">— BAR</span></div>
+              <div class="kv"><span class="k">Объем:</span><span id="condenser-volume" class="v">—</span></div>
+            </div>
+          </div>
+          <div class="line compact">
+            <div class="kvs">
+              <div class="kv muted"><span class="k">Охлаждено:</span><span id="condenser-coolant-evaporated" class="v">—</span></div>
+              <div class="kv muted"><span class="k">Скорость отбора:</span><span id="condenser-extraction-flow" class="v">—</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- СТАТУС СТЕРЖНЕЙ -->
+    <div class="row">
+      <div class="icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M4 10h8V6h8v12h-8v-4H4z"/></svg>
+      </div>
+      <div class="content">
+        <div class="hdr">
+          <div class="name yellow">СТЕРЖНИ УПРАВЛЕНИЯ</div>
+          <div class="right">
+            <span id="rods-status" class="badge">СТАТУС: —</span>
+            <span id="rods-aligned" class="badge">ВЫРАВНЕНО: —</span>
+          </div>
+        </div>
+        <div class="lines">
+          <div class="line compact">
+            <div class="kvs">
+              <div class="kv"><span class="k">Позиция:</span><span id="rods-pos-actual" class="v">—</span></div>
+              <div class="kv"><span class="k">Заказано:</span><span id="rods-pos-ordered" class="v">—</span></div>
+              <div class="kv"><span class="k">Достигнуто:</span><span id="rods-pos-reached" class="v">—</span></div>
+            </div>
+          </div>
+          <div class="line compact">
+            <div class="kvs">
+              <div class="kv muted"><span class="k">Температура:</span><span id="rods-temperature" class="v">—°C</span></div>
+              <div class="kv muted"><span class="k">Количество:</span><span id="rods-quantity" class="v">—</span></div>
+              <div class="kv muted"><span class="k">Деформировано:</span><span id="rods-deformed" class="v">—</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- КРИТИЧЕСКИЕ СИГНАЛЫ -->
+    <div class="row wide">
+      <div class="icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M13 14h-2V8h2m-2 8h2v2h-2m1-18A10 10 0 0 0 2 12a10 10 0 0 0 10 10 10 10 0 0 0 10-10A10 10 0 0 0 12 2z"/></svg>
+      </div>
+      <div class="content">
+        <div class="hdr">
+          <div class="name err">КРИТИЧЕСКИЕ СИГНАЛЫ</div>
+          <div class="right">
+            <span id="core-critical-mass" class="badge error">КРИТИЧЕСКАЯ МАССА: —</span>
+            <span id="core-imminent-fusion" class="badge error">РИСК ПЛАВЛЕНИЯ: —</span>
+          </div>
+        </div>
+        <div class="lines">
+          <div class="line compact">
+            <div class="kvs">
+              <div class="kv"><span class="k">Ксенон:</span><span id="core-xenon-cumulative" class="v">—</span></div>
+              <div class="kv"><span class="k">Йод:</span><span id="core-iodine-cumulative" class="v">—</span></div>
+              <div class="kv"><span class="k">Износ:</span><span id="core-wear" class="v">—%</span></div>
+              <div class="kv"><span class="k">Целостность:</span><span id="core-integrity-value" class="v">—%</span></div>
+            </div>
+          </div>
+          <div class="line compact">
+            <div class="kvs">
+              <div class="kv muted"><span class="k">Пар в активной зоне:</span><span id="core-steam-present" class="v">—</span></div>
+              <div class="kv muted"><span class="k">Высокий пар:</span><span id="core-high-steam-present" class="v">—</span></div>
+              <div class="kv muted"><span class="k">Теплоноситель:</span><span id="coolant-core-state" class="v">—</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<footer>
+  Nucleares Reactor Monitoring System • Обновление каждые 0.5 секунды • Все переменные реальные из API игры
+</footer>
+
+<div id="connection-status" class="connection-status online">ONLINE</div>
+
+<script>
+const server = "http://localhost:8785";
+let updateCounter = 1;
+let isOnline = true;
+let failCount = 0;
+
+/* ================== SAFE FETCH ================== */
+async function getVar(name) {
+  const ctrl = new AbortController();
+  setTimeout(() => ctrl.abort(), 1500);
+
+  try {
+    const res = await fetch(`${server}/?variable=${encodeURIComponent(name)}`, {
+      cache: "no-store",
+      signal: ctrl.signal
+    });
+
+    if (!res.ok) throw new Error(res.status);
+    const raw = (await res.text()).trim();
+    failCount = 0;
+    setConnectionStatus(true);
+
+    if (raw === "" || raw === "null") return null;
+    if (raw === "YES") return "YES";
+    if (raw === "NO") return "NO";
+    if (raw === "true") return true;
+    if (raw === "false") return false;
+
+    // Пробуем преобразовать в число
+    const n = Number(raw.replace(",", "."));
+    if (!isNaN(n)) {
+      return n;
+    }
+    
+    // Если не число, возвращаем строку
+    return raw;
+  } catch (e) {
+    failCount++;
+    console.error(`Ошибка получения переменной ${name}:`, e);
+    if (failCount > 5) setOffline();
+    setConnectionStatus(false);
+    return null;
+  }
+}
+
+/* ================== STATUS ================== */
+function setOffline() {
+  isOnline = false;
+  const sub = document.querySelector("header .sub");
+  sub.textContent = "ОФФЛАЙН • нет соединения";
+  sub.style.color = "var(--danger)";
+}
+
+function setOnline() {
+  isOnline = true;
+  const sub = document.querySelector("header .sub");
+  sub.style.color = "var(--txt-dim)";
+}
+
+function setConnectionStatus(online) {
+  const statusEl = document.getElementById('connection-status');
+  if (online) {
+    statusEl.textContent = 'ONLINE';
+    statusEl.className = 'connection-status online';
+  } else {
+    statusEl.textContent = 'OFFLINE';
+    statusEl.className = 'connection-status offline';
+  }
+}
+
+/* ================== FORMAT ================== */
+const fmt = {
+  n: v => v == null ? "—" : Math.round(v),
+  f: (v, d = 1) => v == null ? "—" : (typeof v === 'number' ? v.toFixed(d) : v),
+  t: v => v == null ? "—°C" : `${Math.round(v)}°C`,
+  p: v => v == null ? "— BAR" : `${v.toFixed(1)} BAR`,
+  pc: v => v == null ? "—%" : `${v.toFixed(1)}%`,
+  rpm: v => v == null ? "—" : `${Math.round(v)} RPM`,
+  kw: v => v == null ? "— kW" : `${Math.round(v)} kW`,
+  mw: v => v == null ? "— MW" : `${v.toFixed(2)} MW`
+};
+
+/* ================== SYSTEM ================== */
+async function updateSystemStatus() {
+  const [
+    time, alarms, integrity, mode, ready, crit, temp, press
+  ] = await Promise.all([
+    getVar("TIME"),
+    getVar("ALARMS_ACTIVE"),
+    getVar("CORE_INTEGRITY"),
+    getVar("CORE_OPERATION_MODE"),
+    getVar("CORE_READY_FOR_START"),
+    getVar("CORE_STATE_CRITICALITY"),
+    getVar("CORE_TEMP"),
+    getVar("CORE_PRESSURE")
+  ]);
+
+  // Time parsing - исправленная версия
+  const timeEl = document.getElementById("time-stamp");
+  if (time != null) {
+    try {
+      // Пробуем разные форматы времени
+      let t;
+      if (typeof time === 'number') {
+        // Unix timestamp в секундах
+        t = new Date(time * 1000);
+      } else if (typeof time === 'string') {
+        // Пробуем распарсить как число
+        const timeNum = Number(time);
+        if (!isNaN(timeNum)) {
+          t = new Date(timeNum * 1000);
+        } else {
+          // Пробуем распарсить как строку даты
+          t = new Date(time);
+        }
+      }
+      
+      if (t && !isNaN(t.getTime())) {
+        timeEl.textContent = `TIME: ${t.toLocaleTimeString("ru-RU")}`;
+      } else {
+        timeEl.textContent = `TIME: ${String(time).substring(0, 20)}`;
+      }
+    } catch (e) {
+      console.error("Ошибка парсинга времени:", e);
+      timeEl.textContent = "TIME: —";
+    }
+  } else {
+    timeEl.textContent = "TIME: —";
+  }
+
+  // Alarms - исправленная версия
+  const alarmsEl = document.getElementById("alarms-active");
+  if (alarms != null) {
+    if (typeof alarms === 'number') {
+      alarmsEl.textContent = `ALARMS: ${alarms}`;
+    } else {
+      // Если это строка, пробуем извлечь число
+      const num = parseInt(alarms);
+      if (!isNaN(num)) {
+        alarmsEl.textContent = `ALARMS: ${num}`;
+      } else {
+        alarmsEl.textContent = `ALARMS: ${alarms}`;
+      }
+    }
+  } else {
+    alarmsEl.textContent = "ALARMS: —";
+  }
+  
+  const integrityBadge = document.getElementById("core-integrity");
+  integrityBadge.textContent = `INTEGRITY: ${fmt.pc(integrity)}`;
+  if (integrity >= 90) integrityBadge.className = "badge ok";
+  else if (integrity >= 70) integrityBadge.className = "badge warn";
+  else integrityBadge.className = "badge error";
+  
+  document.getElementById("core-operation-mode").textContent = mode ?? "—";
+  document.getElementById("core-ready-for-start").textContent = ready ?? "—";
+  
+  const critEl = document.getElementById("core-state-criticality");
+  critEl.textContent = crit ?? "—";
+  if (crit === "CRITICAL") critEl.className = "v critical";
+  else if (crit === "HIGH") critEl.className = "v warn";
+  else critEl.className = "v";
+  
+  document.getElementById("core-temp").textContent = fmt.t(temp);
+  document.getElementById("core-pressure").textContent = fmt.p(press);
+}
+
+/* ================== TURBINES ================== */
+async function updateTurbines() {
+  let installed = 0, rpmSum = 0, rpmCnt = 0, tempSum = 0, totalPower = 0;
+
+  for (let i = 0; i < 3; i++) {
+    const [
+      inst, rpm, press, temp, torque, bypass
+    ] = await Promise.all([
+      getVar(`STEAM_TURBINE_${i}_INSTALLED`),
+      getVar(`STEAM_TURBINE_${i}_RPM`),
+      getVar(`STEAM_TURBINE_${i}_PRESSURE`),
+      getVar(`STEAM_TURBINE_${i}_TEMPERATURE`),
+      getVar(`STEAM_TURBINE_${i}_TORQUE`),
+      getVar(`STEAM_TURBINE_${i}_BYPASS_ACTUAL`)
+    ]);
+
+    document.getElementById(`turbine${i}-installed`).textContent = inst ?? "—";
+    document.getElementById(`turbine${i}-rpm`).textContent = fmt.rpm(rpm);
+    document.getElementById(`turbine${i}-pressure`).textContent = fmt.p(press);
+    document.getElementById(`turbine${i}-temperature`).textContent = fmt.t(temp);
+    document.getElementById(`turbine${i}-torque`).textContent = torque != null ? `${fmt.n(torque)} Nm` : "—";
+    document.getElementById(`turbine${i}-bypass`).textContent = fmt.pc(bypass);
+
+    if (inst === "YES" || inst === true) {
+      installed++;
+      if (rpm != null) { rpmSum += rpm; rpmCnt++; }
+      if (temp != null) tempSum += temp;
+    }
+  }
+
+  document.getElementById("installed-turbines").textContent = `УСТАНОВЛЕНО: ${installed}`;
+  
+  // Get turbine power from API
+  const powerFromTurbine = await getVar("POWER_FROM_TURBINE_KW");
+  totalPower = powerFromTurbine || 0;
+  
+  document.getElementById("total-turbine-power").textContent = `СУММА: ${fmt.kw(totalPower)}`;
+  
+  // Рассчитываем средние значения только если есть установленные турбины
+  if (installed > 0) {
+    const avgRpm = rpmCnt > 0 ? rpmSum / rpmCnt : 0;
+    const avgTemp = installed > 0 ? tempSum / installed : 0;
+    
+    document.getElementById("avg-turbine-rpm").textContent = `AVG RPM: ${fmt.n(avgRpm)}`;
+    document.getElementById("avg-turbine-temp").textContent = `AVG T: ${fmt.t(avgTemp)}`;
+  } else {
+    document.getElementById("avg-turbine-rpm").textContent = `AVG RPM: —`;
+    document.getElementById("avg-turbine-temp").textContent = `AVG T: —°C`;
+  }
+
+  // Загрузка турбин - исправленный расчет
+  const maxPower = await getVar("POWER_MAX_THEORETICAL_FINAL_PLANT_OUTPUT_MW");
+  let loadPercent = 0;
+  
+  if (maxPower && maxPower > 0 && totalPower) {
+    // Конвертируем кВт в МВт и вычисляем процент
+    loadPercent = Math.min((totalPower / 1000) / maxPower * 100, 100);
+  }
+  
+  const loadBar = document.getElementById("turbine-load-bar");
+  loadBar.style.width = `${loadPercent}%`;
+  document.getElementById("turbine-load-percent").textContent = `${Math.round(loadPercent)}%`;
+  
+  if (loadPercent >= 90) loadBar.className = "progress-fill error";
+  else if (loadPercent >= 70) loadBar.className = "progress-fill warn";
+  else loadBar.className = "progress-fill ok";
+
+  return installed;
+}
+
+/* ================== GENERATORS ================== */
+async function updateGenerators() {
+  const [gen0Kw, gen1Kw, gen2Kw, gen0Breaker, gen1Breaker, gen2Breaker, gen0Hz, gen1Hz, gen2Hz, gen0V, gen1V, gen2V] = await Promise.all([
+    getVar("GENERATOR_0_KW"),
+    getVar("GENERATOR_1_KW"),
+    getVar("GENERATOR_2_KW"),
+    getVar("GENERATOR_0_BREAKER"),
+    getVar("GENERATOR_1_BREAKER"),
+    getVar("GENERATOR_2_BREAKER"),
+    getVar("GENERATOR_0_HERTZ"),
+    getVar("GENERATOR_1_HERTZ"),
+    getVar("GENERATOR_2_HERTZ"),
+    getVar("GENERATOR_0_V"),
+    getVar("GENERATOR_1_V"),
+    getVar("GENERATOR_2_V")
+  ]);
+
+  // Use generator 0 values for grid display (or calculate average)
+  const gridHz = gen0Hz || gen1Hz || gen2Hz;
+  const gridV = gen0V || gen1V || gen2V;
+  
+  document.getElementById("grid-hz").textContent = `HZ: ${gridHz ?? "—"}`;
+  document.getElementById("grid-v").textContent = `V: ${gridV ?? "—"}`;
+  
+  document.getElementById("generator0-kw").textContent = fmt.kw(gen0Kw);
+  document.getElementById("generator1-kw").textContent = fmt.kw(gen1Kw);
+  document.getElementById("generator2-kw").textContent = fmt.kw(gen2Kw);
+  
+  const breaker0 = document.getElementById("generator0-breaker");
+  breaker0.textContent = gen0Breaker ?? "—";
+  breaker0.className = gen0Breaker === "CLOSED" ? "v ok" : "v";
+  
+  const breaker1 = document.getElementById("generator1-breaker");
+  breaker1.textContent = gen1Breaker ?? "—";
+  breaker1.className = gen1Breaker === "CLOSED" ? "v ok" : "v";
+  
+  const breaker2 = document.getElementById("generator2-breaker");
+  breaker2.textContent = gen2Breaker ?? "—";
+  breaker2.className = gen2Breaker === "CLOSED" ? "v ok" : "v";
+}
+
+/* ================== STEAM GENERATORS ================== */
+async function updateSteamGenerators() {
+  let totalEvaporated = 0;
+  let pressureSum = 0;
+  let tempSum = 0;
+  let activeLoops = 0;
+  let loopsWithPressure = 0;
+
+  for (let i = 0; i < 3; i++) {
+    const [
+      status, temp, press, vol, evaporated, vent, boiling
+    ] = await Promise.all([
+      getVar(`STEAM_GEN_${i}_STATUS`),
+      getVar(`COOLANT_SEC_${i}_TEMPERATURE`),
+      getVar(`COOLANT_SEC_${i}_PRESSURE`),
+      getVar(`COOLANT_SEC_${i}_VOLUME`),
+      getVar(`STEAM_GEN_${i}_EVAPORATED`),
+      getVar(`STEAM_GEN_${i}_VENT_SWITCH`),
+      getVar(`STEAM_GEN_${i}_BOILING_POINT`)
+    ]);
+
+    document.getElementById(`steamgen${i}-status`).textContent = status ?? "—";
+    document.getElementById(`steamgen${i}-temperature`).textContent = fmt.t(temp);
+    document.getElementById(`steamgen${i}-pressure`).textContent = fmt.p(press);
+    document.getElementById(`steamgen${i}-volume`).textContent = vol != null ? `${fmt.n(vol)} L` : "—";
+    document.getElementById(`steamgen${i}-evaporated`).textContent = evaporated != null ? `${fmt.n(evaporated)} kg` : "—";
+    document.getElementById(`steamgen${i}-vent`).textContent = vent ?? "—";
+    document.getElementById(`steamgen${i}-boiling`).textContent = fmt.t(boiling);
+
+    if (status === "ACTIVE") {
+      activeLoops++;
+    }
+    
+    if (evaporated != null) totalEvaporated += evaporated;
+    if (press != null && press > 0) {
+      pressureSum += press;
+      loopsWithPressure++;
+    }
+    if (temp != null) tempSum += temp;
+  }
+
+  document.getElementById("total-evaporated").textContent = `ИСПАРЕНО: ${fmt.n(totalEvaporated)} kg`;
+  document.getElementById("active-loops").textContent = `КОНТУРОВ: ${activeLoops}`;
+  
+  // Рассчитываем средние значения только для активных контуров с давлением
+  if (loopsWithPressure > 0) {
+    document.getElementById("avg-steam-pressure").textContent = `AVG P: ${fmt.p(pressureSum / loopsWithPressure)}`;
+  } else {
+    document.getElementById("avg-steam-pressure").textContent = `AVG P: — BAR`;
+  }
+  
+  if (activeLoops > 0) {
+    document.getElementById("avg-steam-temp").textContent = `AVG T: ${fmt.t(tempSum / activeLoops)}`;
+  } else {
+    document.getElementById("avg-steam-temp").textContent = `AVG T: —°C`;
+  }
+}
+
+/* ================== CONDENSER ================== */
+async function updateCondenser() {
+  const [temp, press, vol, vac, pump, cooled, flow] = await Promise.all([
+    getVar("CONDENSER_TEMPERATURE"),
+    getVar("CONDENSER_PRESSURE"),
+    getVar("CONDENSER_VOLUME"),
+    getVar("CONDENSER_VACUUM"),
+    getVar("CONDENSER_CIRCULATION_PUMP_ACTIVE"),
+    getVar("CONDENSER_COOLANT_EVAPORATED"),
+    getVar("CONDENSER_EXTRACTION_FLOW_RATE")
+  ]);
+
+  document.getElementById("condenser-temperature").textContent = fmt.t(temp);
+  document.getElementById("condenser-pressure").textContent = fmt.p(press);
+  document.getElementById("condenser-volume").textContent = vol ? `${fmt.n(vol)} L` : "—";
+  document.getElementById("condenser-vacuum").textContent = `ВАКУУМ: ${vac ?? "—"}`;
+  document.getElementById("condenser-pump").textContent = pump ?? "—";
+  document.getElementById("condenser-coolant-evaporated").textContent = cooled ? `${fmt.n(cooled)} L` : "—";
+  document.getElementById("condenser-extraction-flow").textContent = flow ? `${fmt.n(flow)} L/s` : "—";
+}
+
+/* ================== CONTROL RODS ================== */
+async function updateRods() {
+  // Получаем только доступные параметры
+  const [status, aligned, posActual, temp, qty, deform] = await Promise.all([
+    getVar("RODS_STATUS"),
+    getVar("RODS_ALIGNED"),
+    getVar("RODS_POS_ACTUAL"),
+    getVar("RODS_TEMPERATURE"),
+    getVar("RODS_QUANTITY"),
+    getVar("RODS_DEFORMED")
+  ]);
+
+  // Пробуем получить дополнительные параметры, если они есть
+  const [posOrdered, posReached] = await Promise.all([
+    getVar("RODS_POS_ORDERED"),
+    getVar("RODS_POS_REACHED")
+  ]);
+
+  const statusEl = document.getElementById("rods-status");
+  statusEl.textContent = status ?? "—";
+  if (status === "ALIGNED") statusEl.className = "badge ok";
+  else if (status === "MOVING") statusEl.className = "badge warn";
+  else statusEl.className = "badge";
+  
+  document.getElementById("rods-aligned").textContent = aligned ?? "—";
+  document.getElementById("rods-pos-actual").textContent = posActual != null ? `${fmt.pc(posActual)}` : "—";
+  document.getElementById("rods-pos-ordered").textContent = posOrdered != null ? `${fmt.pc(posOrdered)}` : "—";
+  document.getElementById("rods-pos-reached").textContent = posReached != null ? `${fmt.pc(posReached)}` : "—";
+  document.getElementById("rods-temperature").textContent = fmt.t(temp);
+  document.getElementById("rods-quantity").textContent = qty ?? "—";
+  document.getElementById("rods-deformed").textContent = deform ?? "—";
+}
+
+/* ================== CRITICAL SIGNALS ================== */
+async function updateCritical() {
+  const [mass, fusion, xenon, iodine, wear, integrity, steam, highSteam, coolant] = await Promise.all([
+    getVar("CORE_CRITICAL_MASS_REACHED"),
+    getVar("CORE_IMMINENT_FUSION"),
+    getVar("CORE_XENON_CUMULATIVE"),
+    getVar("CORE_IODINE_CUMULATIVE"),
+    getVar("CORE_WEAR"),
+    getVar("CORE_INTEGRITY"),
+    getVar("CORE_STEAM_PRESENT"),
+    getVar("CORE_HIGH_STEAM_PRESENT"),
+    getVar("COOLANT_CORE_STATE")
+  ]);
+
+  const massEl = document.getElementById("core-critical-mass");
+  massEl.textContent = `КРИТИЧЕСКАЯ МАССА: ${mass === "YES" ? "ДА" : "НЕТ"}`;
+  massEl.className = `badge ${mass === "YES" ? "error" : "ok"}`;
+  
+  const fusionEl = document.getElementById("core-imminent-fusion");
+  fusionEl.textContent = `РИСК ПЛАВЛЕНИЯ: ${fusion === "YES" ? "ДА" : "НЕТ"}`;
+  fusionEl.className = `badge ${fusion === "YES" ? "error" : "ok"}`;
+
+  document.getElementById("core-xenon-cumulative").textContent = xenon != null ? `${fmt.f(xenon, 2)}` : "—";
+  document.getElementById("core-iodine-cumulative").textContent = iodine != null ? `${fmt.f(iodine, 2)}` : "—";
+  document.getElementById("core-wear").textContent = fmt.pc(wear);
+  document.getElementById("core-integrity-value").textContent = fmt.pc(integrity);
+  document.getElementById("core-steam-present").textContent = steam === "YES" ? "ДА" : "НЕТ";
+  document.getElementById("core-high-steam-present").textContent = highSteam === "YES" ? "ДА" : "НЕТ";
+  document.getElementById("coolant-core-state").textContent = coolant ?? "—";
+}
+
+/* ================== POWER STATISTICS ================== */
+async function updatePowerStats() {
+  const [maxPower, demand, fromTurbine, fromExternal] = await Promise.all([
+    getVar("POWER_MAX_THEORETICAL_FINAL_PLANT_OUTPUT_MW"),
+    getVar("POWER_DEMAND_MW"),
+    getVar("POWER_FROM_TURBINE_KW"),
+    getVar("POWER_FROM_EXTERNAL_KW")
+  ]);
+
+  document.getElementById("max-power-theoretical").textContent = fmt.mw(maxPower);
+  document.getElementById("power-demand").textContent = fmt.mw(demand);
+  document.getElementById("power-from-turbine").textContent = fmt.kw(fromTurbine);
+  document.getElementById("power-from-external").textContent = fmt.kw(fromExternal);
+}
+
+/* ================== STEAM STATISTICS ================== */
+async function updateSteamStats() {
+  const [totalEvap, condensateFlow] = await Promise.all([
+    getVar("CONDENSER_COOLANT_EVAPORATED"),
+    getVar("CONDENSER_CONDENSATE_FLOW_RATE")
+  ]);
+
+  document.getElementById("total-evaporation").textContent = totalEvap != null ? `${fmt.n(totalEvap)} L` : "—";
+  document.getElementById("condensate-flow").textContent = condensateFlow != null ? `${fmt.n(condensateFlow)} L/s` : "—";
+}
+
+/* ================== MAIN LOOP ================== */
+async function refresh() {
+  if (!isOnline) return;
+  updateCounter++;
+
+  try {
+    // Используем Promise.allSettled чтобы ошибки в одной функции не ломали остальные
+    const results = await Promise.allSettled([
+      updateSystemStatus(),
+      updateTurbines(),
+      updateGenerators(),
+      updateSteamGenerators(),
+      updateCondenser(),
+      updateRods(),
+      updateCritical(),
+      updatePowerStats(),
+      updateSteamStats()
+    ]);
+
+    // Логируем ошибки, если есть
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        console.error(`Ошибка в функции обновления ${index}:`, result.reason);
+      }
+    });
+  } catch (error) {
+    console.error("Ошибка обновления:", error);
+  }
+
+  const sub = document.querySelector("header .sub");
+  sub.textContent = `Обновление #${updateCounter} • localhost:8785 • 0.5с`;
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  refresh();
+  setInterval(refresh, 500);
+});
+</script>
+
+</body>
+</html>
